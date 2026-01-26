@@ -207,17 +207,22 @@
   let clientId = localStorage.getItem(CLIENT_ID_KEY);
   if(!clientId){ clientId=uuid(); localStorage.setItem(CLIENT_ID_KEY, clientId); }
 
-  function validate(date, desc, inQty, outQty){
-    if(!date || !desc) return false;
-    const i=toInt(inQty), o=toInt(outQty);
-    if((i===0 && o===0) || (i>0 && o>0)) return false;
-    if(i<0 || o<0) return false;
-     // 出庫のときだけ、お客さま情報を必須にする
-    if(o > 0){
+ function validate(date, inQty, outQty, cName, cPhone, cPref, cAddr){
+  if(!date) return false;
+
+  const i = toInt(inQty);
+  const o = toInt(outQty);
+
+  // 入庫と出庫はどちらか一方だけ
+  if((i === 0 && o === 0) || (i > 0 && o > 0)) return false;
+  if(i < 0 || o < 0) return false;
+
+  // 出庫のときだけ、お客さま情報必須
+  if(o > 0){
     if(!cName || !cPhone || !cPref || !cAddr) return false;
   }
-    return true;
-  }
+  return true;
+}
 
   async function apiGet(){
     const res = await fetch(WEB_APP_URL, { method:"GET" });
@@ -226,15 +231,15 @@
   async function apiPost(payload){
     const res = await apiPost({
        rowId,
-  person,
-  date,
-  inQty: toInt(inQty),
-  outQty: toInt(outQty),
+       person,
+       date,
+       inQty: toInt(inQty),
+       outQty: toInt(outQty),
 
-  cName,
-  cPhone,
-  cPref,
-  cAddr,
+       cName,
+       cPhone,
+       cPref,
+       cAddr,
 
   clientId
     });
@@ -336,51 +341,59 @@
   }
 
   async function add(){
-    const person = $("person").value;
-    const date = $("fDate").value;
-    const inQty = $("fIn").value;
-    const outQty = $("fOut").value;
+  const person = $("person").value;
+  const date = $("fDate").value;
 
-    const cName = $("cName").value.trim();
-    const cPhone = $("cPhone").value.trim();
-　　const cPref = $("cPref").value;
-　　const cAddr = $("cAddr").value.trim();
+  const inQty = $("fIn").value;
+  const outQty = $("fOut").value;
 
-    if(!validate(date, desc, inQty, outQty)){
-      setStatus("入力エラー：日付必須、入庫/出庫はどちらか一方だけ。出庫時は氏名/電話/住所必須", "warn");
+  const cName = $("cName").value.trim();
+  const cPhone = $("cPhone").value.trim();
+  const cPref = $("cPref").value;
+  const cAddr = $("cAddr").value.trim();
+
+  if(!validate(date, inQty, outQty, cName, cPhone, cPref, cAddr)){
+    setStatus("入力エラー：日付必須、入庫/出庫はどちらか一方。出庫時は氏名/電話/住所必須。", "warn");
+    return;
+  }
+
+  setStatus("共有保存中…");
+  try{
+    const rowId = uuid();
+    const res = await apiPost({
+      rowId,
+      person,
+      date,
+      inQty: toInt(inQty),
+      outQty: toInt(outQty),
+      cName,
+      cPhone,
+      cPref,
+      cAddr,
+      clientId
+    });
+
+    if(!res.ok){
+      setStatus("保存失敗（Webアプリ設定/権限）", "warn");
       return;
     }
 
-    setStatus("共有保存中…");
-    try{
-      const rowId = uuid();
-      const res = await apiPost({
-        rowId,
-        person, date, desc,
-        inQty: toInt(inQty),
-        outQty: toInt(outQty),
-        note,
-        clientId
-      });
+    // ✅ 保存後クリア
+    $("fIn").value = 0;
+    $("fOut").value = 0;
+    $("cName").value = "";
+    $("cPhone").value = "";
+    $("cPref").value = "";
+    $("cAddr").value = "";
 
-      if(!res.ok){
-        setStatus("保存失敗（Webアプリ設定/権限）", "warn");
-        return;
-      }
-　　　/* 👇 保存後の入力クリアはここ */
-　　　$("fIn").value = 0;
-　　　$("fOut").value = 0;
-　　　$("cName").value = "";
-　　　$("cPhone").value = "";
-　　　$("cPref").value = "";
-　　　$("cAddr").value = "";
-　　　/* ここまで */
-      setStatus("保存しました。最新を読み込みます…");
-      await reload();
-    }catch(e){
-      setStatus("保存失敗（ネットワーク/URL/権限）", "warn");
-    }
+    setStatus("保存しました。最新を読み込みます…");
+    await reload();
+
+  }catch(e){
+    setStatus("保存失敗（ネットワーク/URL/権限）", "warn");
   }
+}
+
 
   async function deleteSelected(){
     const ids = [...selectedIds];
