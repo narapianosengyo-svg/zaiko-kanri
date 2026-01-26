@@ -223,11 +223,6 @@
   }
   return true;
 }
-
-  async function apiGet(){
-    const res = await fetch(WEB_APP_URL, { method:"GET" });
-    return await res.json();
-  }
   async function apiPost(payload){
   const res = await fetch(WEB_APP_URL, {
     method:"POST",
@@ -235,19 +230,32 @@
     body: JSON.stringify(payload)
   });
 
-  // まず本文をテキストで受け取る（JSONじゃない時もある）
   const text = await res.text();
   let data = null;
   try { data = JSON.parse(text); } catch(e) {}
 
-  // HTTPが失敗してる場合もわかるように返す
   if(!res.ok){
     return { ok:false, error:`HTTP ${res.status}`, detail:text };
   }
-
-  // JSONとして返ってきていればそれを返す
   return data || { ok:false, error:"Invalid JSON", detail:text };
 }
+
+  async function apiGet(){
+  const res = await fetch(WEB_APP_URL, { method:"GET" });
+
+  const text = await res.text();
+  let data = null;
+  try { data = JSON.parse(text); } catch(e) {}
+
+  if(!res.ok){
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+  if(!data){
+    throw new Error(`Invalid JSON: ${text}`);
+  }
+  return data;
+}
+
 
 
   // ✅ これを外に出す（グローバル関数）
@@ -289,6 +297,7 @@
     for(const r of rows){
       const id = r.rowId;
       const checked = selectedIds.has(id) ? "checked" : "";
+      const addrFull = [r.cPref, r.cAddr].filter(Boolean).join(" ");
       const tr=document.createElement("tr");
       tr.innerHTML = `
   <td><input class="chk rowChk" type="checkbox" data-id="${esc(id)}" ${checked}></td>
@@ -340,8 +349,9 @@
       applyFilterAndRender();
       setStatus("最新を表示しました。", "ok");
     }catch(e){
-      setStatus("読み込み失敗（ネットワーク/URL/権限）", "warn");
-    }
+  setStatus("読み込み失敗：" + (e?.message || e), "warn");
+}
+
   }
 
   async function add(){
@@ -401,29 +411,33 @@
 
 
   async function deleteSelected(){
-    const ids = [...selectedIds];
-    if(ids.length === 0){
-      setStatus("削除する行が選ばれていません。", "warn");
+  const ids = [...selectedIds].filter(Boolean);
+  if(ids.length === 0){
+    setStatus("削除する行が選ばれていません。", "warn");
+    return;
+  }
+  if(!confirm(`チェックした ${ids.length} 件を削除します。よろしいですか？`)) return;
+
+  setStatus("削除中…");
+  try{
+    const res = await apiPost({ action:"delete", ids, clientId });
+
+    if(!res.ok){
+      setStatus("削除失敗：" + (res.error || "不明なエラー") + (res.detail ? (" / " + res.detail) : ""), "warn");
       return;
     }
-    if(!confirm(`チェックした ${ids.length} 件を削除します。よろしいですか？`)) return;
 
-    setStatus("削除中…");
-    try{
-      const res = await apiPost({ action:"delete", ids });
-      if(!res.ok){
-        setStatus("削除失敗（権限/設定）", "warn");
-        return;
-      }
-      selectedIds.clear();
-      $("chkAll").checked = false;
-      $("chkAll").indeterminate = false;
-      setStatus("削除しました。最新を読み込みます…");
-      await reload();
-    }catch(e){
-      setStatus("削除失敗（ネットワーク/URL/権限）", "warn");
-    }
+    selectedIds.clear();
+    $("chkAll").checked = false;
+    $("chkAll").indeterminate = false;
+
+    setStatus("削除しました。最新を読み込みます…");
+    await reload();
+  }catch(e){
+    setStatus("削除失敗：" + (e?.message || e), "warn");
   }
+}
+
 
   function init(){
     // 委託者プルダウン
