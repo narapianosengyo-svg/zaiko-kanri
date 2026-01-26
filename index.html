@@ -72,6 +72,11 @@
       <div class="right stickyActions">
         <button id="btnReload" class="btn-ghost">最新を読み込み</button>
         <button id="btnDeleteSelected" class="btn-danger">チェック削除</button>
+        <label style="font-size:12px; color:var(--muted); display:flex; gap:8px; align-items:center;">
+        表示
+        <select id="viewFilter" style="min-width:140px;"></select>
+        </label>
+
       </div>
     </header>
 
@@ -150,7 +155,7 @@
 
 <script>
   // ★ここをWebアプリURLに
-  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwgHJ9xLH0i9ouxmQe5Pgy4gpC0jReOQg7msSk04ZTm-frWWLgAa7ogvHP85-eY5EWk/exec";
+  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwgHJ9xLH0i9ouxmQe5Pgy4gpC0jReOQg7msSk04ZTm-frWWLgAa7ogvHP85-eY5EWk/exec=";
 
   // ★実名にしてOK
   const PEOPLE = ["委託者A","委託者B","委託者C","委託者D","委託者E"];
@@ -158,6 +163,7 @@
   const $ = (id)=>document.getElementById(id);
 
   let currentRows = [];          // 画面に表示している行（rowId含む）
+  let allRows = []; // サーバーから取得した全行を保持
   let selectedIds = new Set();   // チェックされたrowId
 
   function todayISO(){
@@ -282,12 +288,21 @@
         setStatus("読み込み失敗（Webアプリ設定/URLを確認）", "warn");
         return;
       }
-      // 表示更新時：存在しないIDは選択から落とす
-      const incoming = (data.rows || []);
-      const idSet = new Set(incoming.map(r=>r.rowId));
-      selectedIds = new Set([...selectedIds].filter(id => idSet.has(id)));
+      function applyFilterAndRender(){
+        const v = $("viewFilter").value; // "ALL" または 委託者名
+        const filtered = (v === "ALL")
+        ? allRows
+        : allRows.filter(r => r.person === v);
 
-      render(incoming);
+  // 表示対象が変わったら、存在しない選択は外す
+  const idSet = new Set(filtered.map(r => r.rowId));
+  selectedIds = new Set([...selectedIds].filter(id => idSet.has(id)));
+
+  render(filtered);
+}
+
+      allRows = (data.rows || []);
+      applyFilterAndRender();
       setStatus("最新を表示しました。", "ok");
     }catch(e){
       setStatus("読み込み失敗（ネットワーク/URL/権限）", "warn");
@@ -370,6 +385,28 @@
       o.value=p; o.textContent=p;
       sel.appendChild(o);
     }
+     // 表示フィルタ（全員 + 5人）
+     const vf = $("viewFilter");
+     vf.innerHTML = "";
+     const optAll = document.createElement("option");
+     optAll.value = "ALL";
+     optAll.textContent = "全員";
+     vf.appendChild(optAll);
+
+for(const p of PEOPLE){
+  const o=document.createElement("option");
+  o.value=p; o.textContent=p;
+  vf.appendChild(o);
+}
+
+// フィルタ変更で表示切替
+vf.addEventListener("change", () => {
+  // 全選択チェックの表示も整える
+  $("chkAll").checked = false;
+  $("chkAll").indeterminate = false;
+  applyFilterAndRender();
+});
+
 
     // 日付：今日を自動セット
     $("fDate").value = todayISO();
