@@ -154,17 +154,14 @@
   </div>
 
 <script>
-  // ★ここをWebアプリURLに
   const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwgHJ9xLH0i9ouxmQe5Pgy4gpC0jReOQg7msSk04ZTm-frWWLgAa7ogvHP85-eY5EWk/exec";
-
-  // ★実名にしてOK
   const PEOPLE = ["委託者A","委託者B","委託者C","委託者D","委託者E"];
 
   const $ = (id)=>document.getElementById(id);
 
-  let currentRows = [];          // 画面に表示している行（rowId含む）
-  let allRows = []; // サーバーから取得した全行を保持
-  let selectedIds = new Set();   // チェックされたrowId
+  let currentRows = [];
+  let allRows = [];
+  let selectedIds = new Set();
 
   function todayISO(){
     const d=new Date();
@@ -212,12 +209,25 @@
     return await res.json();
   }
 
+  // ✅ これを外に出す（グローバル関数）
+  function applyFilterAndRender(){
+    const v = $("viewFilter").value; // "ALL" または 委託者名
+    const filtered = (v === "ALL")
+      ? allRows
+      : allRows.filter(r => r.person === v);
+
+    // 表示対象が変わったら、存在しない選択は外す
+    const idSet = new Set(filtered.map(r => r.rowId));
+    selectedIds = new Set([...selectedIds].filter(id => idSet.has(id)));
+
+    render(filtered);
+  }
+
   function render(rows){
     // 新しい順（ts）
-    rows.sort((a,b)=> (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
+    rows = [...rows].sort((a,b)=> (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
     currentRows = rows;
 
-    // 集計
     let sumIn=0,sumOut=0;
     for(const r of rows){
       sumIn += toInt(r.inQty);
@@ -232,7 +242,6 @@
     diffEl.classList.remove("ok","warn");
     diffEl.classList.add(diff >= 0 ? "ok" : "warn");
 
-    // 表
     const tb = $("tbody");
     tb.innerHTML = "";
     for(const r of rows){
@@ -240,9 +249,7 @@
       const checked = selectedIds.has(id) ? "checked" : "";
       const tr=document.createElement("tr");
       tr.innerHTML = `
-        <td>
-          <input class="chk rowChk" type="checkbox" data-id="${esc(id)}" ${checked}>
-        </td>
+        <td><input class="chk rowChk" type="checkbox" data-id="${esc(id)}" ${checked}></td>
         <td>${esc(r.person)}</td>
         <td>${esc(r.date)}</td>
         <td>${esc(r.desc)}</td>
@@ -253,8 +260,6 @@
       `;
       tb.appendChild(tr);
     }
-
-    // 全選択チェック状態を反映
     syncChkAll();
   }
 
@@ -288,19 +293,6 @@
         setStatus("読み込み失敗（Webアプリ設定/URLを確認）", "warn");
         return;
       }
-      function applyFilterAndRender(){
-        const v = $("viewFilter").value; // "ALL" または 委託者名
-        const filtered = (v === "ALL")
-        ? allRows
-        : allRows.filter(r => r.person === v);
-
-  // 表示対象が変わったら、存在しない選択は外す
-  const idSet = new Set(filtered.map(r => r.rowId));
-  selectedIds = new Set([...selectedIds].filter(id => idSet.has(id)));
-
-  render(filtered);
-}
-
       allRows = (data.rows || []);
       applyFilterAndRender();
       setStatus("最新を表示しました。", "ok");
@@ -324,7 +316,7 @@
 
     setStatus("共有保存中…");
     try{
-      const rowId = uuid(); // ★追加時にID作成
+      const rowId = uuid();
       const res = await apiPost({
         rowId,
         person, date, desc,
@@ -365,7 +357,6 @@
         setStatus("削除失敗（権限/設定）", "warn");
         return;
       }
-      // ローカル選択クリア→再読込
       selectedIds.clear();
       $("chkAll").checked = false;
       $("chkAll").indeterminate = false;
@@ -385,33 +376,29 @@
       o.value=p; o.textContent=p;
       sel.appendChild(o);
     }
-     // 表示フィルタ（全員 + 5人）
-     const vf = $("viewFilter");
-     vf.innerHTML = "";
-     const optAll = document.createElement("option");
-     optAll.value = "ALL";
-     optAll.textContent = "全員";
-     vf.appendChild(optAll);
 
-for(const p of PEOPLE){
-  const o=document.createElement("option");
-  o.value=p; o.textContent=p;
-  vf.appendChild(o);
-}
+    // 表示フィルタ
+    const vf = $("viewFilter");
+    vf.innerHTML = "";
+    const optAll = document.createElement("option");
+    optAll.value = "ALL";
+    optAll.textContent = "全員";
+    vf.appendChild(optAll);
 
-// フィルタ変更で表示切替
-vf.addEventListener("change", () => {
-  // 全選択チェックの表示も整える
-  $("chkAll").checked = false;
-  $("chkAll").indeterminate = false;
-  applyFilterAndRender();
-});
+    for(const p of PEOPLE){
+      const o=document.createElement("option");
+      o.value=p; o.textContent=p;
+      vf.appendChild(o);
+    }
 
+    vf.addEventListener("change", () => {
+      $("chkAll").checked = false;
+      $("chkAll").indeterminate = false;
+      applyFilterAndRender(); // ✅ グローバルなので呼べる
+    });
 
-    // 日付：今日を自動セット
     $("fDate").value = todayISO();
 
-    // 日付欄クリックでカレンダー（対応ブラウザ）
     const dateInput = $("fDate");
     dateInput.addEventListener("click", ()=>{ if(dateInput.showPicker) dateInput.showPicker(); });
     dateInput.addEventListener("focus", ()=>{ if(dateInput.showPicker) dateInput.showPicker(); });
@@ -420,7 +407,6 @@ vf.addEventListener("change", () => {
     $("btnReload").addEventListener("click", reload);
     $("btnDeleteSelected").addEventListener("click", deleteSelected);
 
-    // 行チェック
     $("tbody").addEventListener("change", (e)=>{
       const chk = e.target.closest(".rowChk");
       if(!chk) return;
@@ -430,7 +416,6 @@ vf.addEventListener("change", () => {
       syncChkAll();
     });
 
-    // 全選択
     $("chkAll").addEventListener("change", ()=>{
       const allIds = currentRows.map(r=>r.rowId).filter(Boolean);
       if($("chkAll").checked){
@@ -438,7 +423,7 @@ vf.addEventListener("change", () => {
       }else{
         allIds.forEach(id => selectedIds.delete(id));
       }
-      render(currentRows); // チェック状態反映
+      render(currentRows);
     });
 
     reload();
