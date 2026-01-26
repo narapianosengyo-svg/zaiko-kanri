@@ -229,22 +229,26 @@
     return await res.json();
   }
   async function apiPost(payload){
-    const res = await apiPost({
-       rowId,
-       person,
-       date,
-       inQty: toInt(inQty),
-       outQty: toInt(outQty),
+  const res = await fetch(WEB_APP_URL, {
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify(payload)
+  });
 
-       cName,
-       cPhone,
-       cPref,
-       cAddr,
+  // まず本文をテキストで受け取る（JSONじゃない時もある）
+  const text = await res.text();
+  let data = null;
+  try { data = JSON.parse(text); } catch(e) {}
 
-  clientId
-    });
-    return await res.json();
+  // HTTPが失敗してる場合もわかるように返す
+  if(!res.ok){
+    return { ok:false, error:`HTTP ${res.status}`, detail:text };
   }
+
+  // JSONとして返ってきていればそれを返す
+  return data || { ok:false, error:"Invalid JSON", detail:text };
+}
+
 
   // ✅ これを外に出す（グローバル関数）
   function applyFilterAndRender(){
@@ -374,9 +378,10 @@
     });
 
     if(!res.ok){
-      setStatus("保存失敗（Webアプリ設定/権限）", "warn");
-      return;
-    }
+  setStatus("保存失敗：" + (res.error || "不明") + (res.detail ? (" / " + res.detail) : ""), "warn");
+  return;
+}
+
 
     // ✅ 保存後クリア
     $("fIn").value = 0;
