@@ -89,9 +89,18 @@
           <label>日付
             <input id="fDate" type="date" />
           </label>
-          <label>内容
-            <input id="fDesc" type="text" placeholder="例：会社から受取 / ○○様宅で販売" style="min-width:260px;" />
+	  <label>お客さま氏名
+            <input id="cName" type="text" placeholder="例：山田 太郎" style="min-width:180px;" />
           </label>
+　　　　　<label>電話番号
+ 　　　　　 <input id="cPhone" type="text" inputmode="tel" placeholder="例：090-1234-5678" style="min-width:170px;" />
+　　　　　</label>
+　　　　　<label>都道府県
+ 　　　　　 <select id="cPref" style="min-width:160px;"></select>
+　　　　　</label>
+　　　　　<label>住所（市区町村以降）
+  　　　　　<input id="cAddr" type="text" placeholder="例：奈良市○○町1-2-3" style="min-width:260px;" />
+　　　　　</label>
           <label>入庫数（個）
             <input id="fIn" type="number" min="0" value="0" />
           </label>
@@ -141,11 +150,10 @@
             </th>
             <th style="width:110px;">委託者</th>
             <th style="width:120px;">日付</th>
-            <th>内容</th>
-            <th class="num" style="width:90px;">入庫</th>
-            <th class="num" style="width:90px;">出庫</th>
-            <th>備考</th>
-            <th style="width:220px;">記録時刻</th>
+            <th>氏名/電話/住所</th>
+            <th style="width:160px;">お客さま氏名</th>
+	    <th style="width:160px;">電話番号</th>
+            <th>住所</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
@@ -156,6 +164,17 @@
 <script>
   const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwgHJ9xLH0i9ouxmQe5Pgy4gpC0jReOQg7msSk04ZTm-frWWLgAa7ogvHP85-eY5EWk/exec";
   const PEOPLE = ["委託者A","委託者B","委託者C","委託者D","委託者E"];
+  const PREFS = [
+  "北海道","青森県","岩手県","宮城県","秋田県","山形県","福島県",
+  "茨城県","栃木県","群馬県","埼玉県","千葉県","東京都","神奈川県",
+  "新潟県","富山県","石川県","福井県","山梨県","長野県",
+  "岐阜県","静岡県","愛知県","三重県",
+  "滋賀県","京都府","大阪府","兵庫県","奈良県","和歌山県",
+  "鳥取県","島根県","岡山県","広島県","山口県",
+  "徳島県","香川県","愛媛県","高知県",
+  "福岡県","佐賀県","長崎県","熊本県","大分県","宮崎県","鹿児島県",
+  "沖縄県"
+];
 
   const $ = (id)=>document.getElementById(id);
 
@@ -193,6 +212,10 @@
     const i=toInt(inQty), o=toInt(outQty);
     if((i===0 && o===0) || (i>0 && o>0)) return false;
     if(i<0 || o<0) return false;
+     // 出庫のときだけ、お客さま情報を必須にする
+    if(o > 0){
+    if(!cName || !cPhone || !cPref || !cAddr) return false;
+  }
     return true;
   }
 
@@ -201,10 +224,19 @@
     return await res.json();
   }
   async function apiPost(payload){
-    const res = await fetch(WEB_APP_URL, {
-      method:"POST",
-      headers:{ "Content-Type":"text/plain;charset=utf-8" },
-      body: JSON.stringify(payload)
+    const res = await apiPost({
+       rowId,
+  person,
+  date,
+  inQty: toInt(inQty),
+  outQty: toInt(outQty),
+
+  cName,
+  cPhone,
+  cPref,
+  cAddr,
+
+  clientId
     });
     return await res.json();
   }
@@ -250,15 +282,16 @@
       const checked = selectedIds.has(id) ? "checked" : "";
       const tr=document.createElement("tr");
       tr.innerHTML = `
-        <td><input class="chk rowChk" type="checkbox" data-id="${esc(id)}" ${checked}></td>
-        <td>${esc(r.person)}</td>
-        <td>${esc(r.date)}</td>
-        <td>${esc(r.desc)}</td>
-        <td class="num">${toInt(r.inQty)||""}</td>
-        <td class="num">${toInt(r.outQty)||""}</td>
-        <td>${esc(r.note||"")}</td>
-        <td class="muted">${esc(r.ts||"")}</td>
-      `;
+  <td><input class="chk rowChk" type="checkbox" data-id="${esc(id)}" ${checked}></td>
+  <td>${esc(r.person)}</td>
+  <td>${esc(r.date)}</td>
+  <td>${esc(r.cName || "")}</td>
+  <td>${esc(r.cPhone || "")}</td>
+  <td>${esc(addrFull)}</td>
+  <td class="num">${toInt(r.inQty)||""}</td>
+  <td class="num">${toInt(r.outQty)||""}</td>
+  <td class="muted">${esc(r.ts||"")}</td>
+`;
       tb.appendChild(tr);
     }
     syncChkAll();
@@ -305,13 +338,16 @@
   async function add(){
     const person = $("person").value;
     const date = $("fDate").value;
-    const desc = $("fDesc").value.trim();
     const inQty = $("fIn").value;
     const outQty = $("fOut").value;
-    const note = $("fNote").value.trim();
+
+    const cName = $("cName").value.trim();
+    const cPhone = $("cPhone").value.trim();
+　　const cPref = $("cPref").value;
+　　const cAddr = $("cAddr").value.trim();
 
     if(!validate(date, desc, inQty, outQty)){
-      setStatus("入力エラー：日付・内容必須、入庫/出庫はどちらか一方だけ。", "warn");
+      setStatus("入力エラー：日付必須、入庫/出庫はどちらか一方だけ。出庫時は氏名/電話/住所必須", "warn");
       return;
     }
 
@@ -331,11 +367,14 @@
         setStatus("保存失敗（Webアプリ設定/権限）", "warn");
         return;
       }
-
-      $("fDesc").value="";
-      $("fIn").value=0;
-      $("fOut").value=0;
-      $("fNote").value="";
+　　　/* 👇 保存後の入力クリアはここ */
+　　　$("fIn").value = 0;
+　　　$("fOut").value = 0;
+　　　$("cName").value = "";
+　　　$("cPhone").value = "";
+　　　$("cPref").value = "";
+　　　$("cAddr").value = "";
+　　　/* ここまで */
       setStatus("保存しました。最新を読み込みます…");
       await reload();
     }catch(e){
@@ -376,6 +415,15 @@
       const o=document.createElement("option");
       o.value=p; o.textContent=p;
       sel.appendChild(o);
+    }
+    
+    // 都道府県プルダウン
+    const prefSel = $("cPref");
+    prefSel.innerHTML = `<option value="">選択</option>`;
+    for(const p of PREFS){
+    const o=document.createElement("option");
+    o.value=p; o.textContent=p;
+    prefSel.appendChild(o);
     }
     
     // 委託者を変えたら、一覧の表示フィルタも同じ人に切り替える
