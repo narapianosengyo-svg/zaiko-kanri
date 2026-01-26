@@ -376,6 +376,15 @@
       o.value=p; o.textContent=p;
       sel.appendChild(o);
     }
+    
+    // 委託者を変えたら、一覧の表示フィルタも同じ人に切り替える
+    $("person").addEventListener("change", () => {
+    $("viewFilter").value = $("person").value; // ← ここで「全員」じゃなく、その人にする
+    $("chkAll").checked = false;
+    $("chkAll").indeterminate = false;
+    applyFilterAndRender();
+    });
+
 
     // 表示フィルタ
     const vf = $("viewFilter");
