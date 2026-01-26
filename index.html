@@ -212,8 +212,7 @@
   // ✅ これを外に出す（グローバル関数）
   function applyFilterAndRender(){
     const v = $("viewFilter").value; // "ALL" または 委託者名
-    $("listTitle").textContent =
-    (v === "ALL") ? "一覧（全員分）" : `一覧（${v}）`;
+    $("listTitle").textContent = (v === "ALL") ? "一覧（全員分）" : "一覧（" + v + "）";
     const filtered = (v === "ALL")
       ? allRows
       : allRows.filter(r => r.person === v);
