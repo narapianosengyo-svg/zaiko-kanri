@@ -156,6 +156,7 @@
             <th>住所</th>
 　　　　　　<th style="width:90px;" class="num">入庫数</th>
 	　　<th style="width:90px;" class="num">出庫</th>
+            <th style="width:220px;">備考</th>
             <th style="width:170px;">記録時刻</th>
           </tr>
         </thead>
@@ -311,6 +312,9 @@
   <td>${esc(addrFull)}</td>
   <td class="num">${toInt(r.inQty)||""}</td>
   <td class="num">${toInt(r.outQty)||""}</td>
+  <td>${esc(r.note || "")}</td>
+  <td class="muted">${esc(r.ts||"")}</td>
+
   <td class="muted">${esc(r.ts||"")}</td>
 `;
       tb.appendChild(tr);
@@ -369,6 +373,8 @@
   const cPref = $("cPref").value;
   const cAddr = $("cAddr").value.trim();
 
+  const note = $("fNote").value.trim(); // ← 追加
+
   if(!validate(date, inQty, outQty, cName, cPhone, cPref, cAddr)){
     setStatus("入力エラー：日付必須、入庫/出庫はどちらか一方。出庫時は氏名/電話/住所必須。", "warn");
     return;
@@ -387,22 +393,23 @@
       cPhone,
       cPref,
       cAddr,
+      note,          // ← 追加
       clientId
     });
 
     if(!res.ok){
-  setStatus("保存失敗：" + (res.error || "不明") + (res.detail ? (" / " + res.detail) : ""), "warn");
-  return;
-}
+      setStatus("保存失敗：" + (res.error || "不明") + (res.detail ? (" / " + res.detail) : ""), "warn");
+      return;
+    }
 
-
-    // ✅ 保存後クリア
+    // クリア
     $("fIn").value = 0;
     $("fOut").value = 0;
     $("cName").value = "";
     $("cPhone").value = "";
     $("cPref").value = "";
     $("cAddr").value = "";
+    $("fNote").value = ""; // ← 追加
 
     setStatus("保存しました。最新を読み込みます…");
     await reload();
@@ -411,6 +418,7 @@
     setStatus("保存失敗（ネットワーク/URL/権限）", "warn");
   }
 }
+
 
 
   async function deleteSelected(){
@@ -499,6 +507,28 @@
     $("btnAdd").addEventListener("click", add);
     $("btnReload").addEventListener("click", reload);
     $("btnDeleteSelected").addEventListener("click", deleteSelected);
+
+        // 入庫/出庫に応じて自動制御
+    function clearCustomer(){
+      $("cName").value = "";
+      $("cPhone").value = "";
+      $("cPref").value = "";
+      $("cAddr").value = "";
+    }
+
+    $("fIn").addEventListener("input", ()=>{
+      if(toInt($("fIn").value) > 0){
+        $("fOut").value = 0;
+        clearCustomer(); // 入庫なら顧客情報を消す
+      }
+    });
+
+    $("fOut").addEventListener("input", ()=>{
+      if(toInt($("fOut").value) > 0){
+        $("fIn").value = 0;
+      }
+    });
+
 
     $("tbody").addEventListener("change", (e)=>{
       const chk = e.target.closest(".rowChk");
