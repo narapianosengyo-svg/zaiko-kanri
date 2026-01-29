@@ -24,6 +24,7 @@
       background:var(--input); border:1px solid rgba(255,255,255,.10); color:var(--text);
       border-radius:10px; padding:9px 10px; outline:none; min-width:140px;
     }
+    .muted{color: var(--muted); }
     input[type="number"]{ min-width:110px; }
     input:focus, select:focus{ border-color: rgba(122,162,255,.55); box-shadow: 0 0 0 3px rgba(122,162,255,.18); }
     button{ border:1px solid rgba(255,255,255,.12); background: rgba(122,162,255,.16);
@@ -59,7 +60,7 @@
     .status.warn{ color: rgba(255,107,107,.95); }
 
     .chk { width:18px; height:18px; accent-color: var(--accent); }
-    .stickyActions { display:flex gap:10px; align-items:center; }
+    .stickyActions { display:flex; gap:10px; align-items:center; }
   </style>
 </head>
 <body>
@@ -153,7 +154,9 @@
             <th style="width:160px;">お客さま氏名</th>
 	    <th style="width:160px;">電話番号</th>
             <th>住所</th>
-　　　　　　<th>入庫数</th>
+　　　　　　<th style="width:90px;" class="num">入庫数</th>
+	　　<th style="width:90px;" class="num">出庫</th>
+            <th style="width:170px;">記録時刻</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
